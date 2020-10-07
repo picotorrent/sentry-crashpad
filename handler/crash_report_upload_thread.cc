@@ -44,6 +44,37 @@
 #include "handler/mac/file_limit_annotation.h"
 #endif  // OS_APPLE
 
+#if defined(OS_WIN)
+#include <CommCtrl.h>
+#include <Windows.h>
+
+HRESULT CALLBACK TaskDialogCallback(HWND hwnd,
+                                    UINT msg,
+                                    WPARAM wParam,
+                                    LPARAM lParam,
+                                    LONG_PTR lpRefData) {
+  switch (msg) {
+    case TDN_BUTTON_CLICKED: {
+      int btn = static_cast<int>(wParam);
+
+      switch (btn) {
+        case IDOK: {
+          SendMessage(hwnd, TDM_ENABLE_BUTTON, IDOK, 0);
+          break;
+        }
+      }
+      break;
+    }
+    case TDN_CREATED: {
+      SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE);
+      break;
+    }
+  }
+
+  return S_OK;
+}
+#endif
+
 namespace crashpad {
 
 CrashReportUploadThread::CrashReportUploadThread(CrashReportDatabase* database,
@@ -218,6 +249,33 @@ void CrashReportUploadThread::ProcessPendingReport(
     case CrashReportDatabase::kCannotRequestUpload:
       NOTREACHED();
       return;
+  }
+
+  const TASKDIALOG_BUTTON buttons[] = {{IDOK, L"Send crash report"}};
+
+  TASKDIALOGCONFIG config = {0};
+  config.cbSize = sizeof(config);
+  config.hInstance = GetModuleHandle(nullptr);
+  config.dwCommonButtons = TDCBF_CLOSE_BUTTON;
+  config.pszMainIcon = TD_ERROR_ICON;
+  config.pszMainInstruction = L"PicoTorrent crashed";
+  config.pszContent =
+      L"Unfortunately, PicoTorrent crashed. You can send a crash report to "
+      L"help us debug the issue.";
+  config.pszWindowTitle = L"PicoTorrent";
+  config.pButtons = buttons;
+  config.cButtons = ARRAYSIZE(buttons);
+  config.dwFlags = TDF_USE_COMMAND_LINKS;
+  config.pfCallback = TaskDialogCallback;
+  config.lpCallbackData = reinterpret_cast<LONG_PTR>(this);
+
+  int nButtonPressed = 0;
+  TaskDialogIndirect(&config, &nButtonPressed, NULL, NULL);
+
+  if (nButtonPressed != IDOK) {
+    // Mark upload as complete even though we didn't upload anything...
+    database_->RecordUploadComplete(std::move(upload_report), std::string());
+    return;
   }
 
   std::string response_body;

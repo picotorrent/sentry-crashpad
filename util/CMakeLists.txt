@@ -412,6 +412,12 @@ if(WIN32)
     target_link_libraries(crashpad_util PRIVATE user32 version winhttp)
     if(MSVC)
         target_compile_options(crashpad_util PRIVATE "/wd4201")
+
+        if (CMAKE_SIZEOF_VOID_P EQUAL 4)
+            message(STATUS "enabling /safeseh for asm files on x86 build")
+            set_source_files_properties(misc/capture_context_win.asm   PROPERTIES COMPILE_FLAGS "/safeseh")
+            set_source_files_properties(win/safe_terminate_process.asm PROPERTIES COMPILE_FLAGS "/safeseh")
+        endif()
     elseif(MINGW)
         target_compile_options(crashpad_util PRIVATE
             $<$<COMPILE_LANGUAGE:CXX>:-municode>

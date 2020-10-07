@@ -61,6 +61,7 @@ target_link_libraries(crashpad_handler_lib
 if(WIN32)
     if(MSVC)
         target_compile_options(crashpad_handler_lib PRIVATE "/wd4201")
+        target_link_libraries(crashpad_handler_lib  PRIVATE "Comctl32")
     endif()
 endif()
 
